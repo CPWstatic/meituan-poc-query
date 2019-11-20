@@ -163,7 +163,6 @@ public class Main {
         }
 
         System.out.println(query);
-        //System.out.println(queryResult.getRows());
         System.out.println(String.format(
                 "query cnt : %d, degree : %d, query cost avg: %d ms, query total cost: %d ms, query max rtt: %d, query min rtt: %d",
                 QUERY_CNT, queryResult.getRows().size(), QUERY_COST_TOTAL / QUERY_CNT, QUERY_COST_TOTAL, QUERY_RTT_MAX, QUERY_RTT_MIN));
@@ -230,19 +229,27 @@ public class Main {
     }
 
     private static void test4() throws Exception {
+        // 1.获取用户A信息
         String fetchUserFmt = "USE meituan; FETCH PROP ON user %d";
         StringBuilder queryBuilder = new StringBuilder();
         String queryFmt = queryBuilder
+                // 2.获取用户A当前[lat,lng] 5公里内poi
                 .append("USE geo;\n")
                 .append("$poi = GO from near(\"%s\", %d) over locate YIELD locate._dst AS id;\n")
+                // 3.获取消费poi的user集合，并计算与用户A的相似度
                 .append("USE meituan;\n")
                 .append("GO FROM $poi.id OVER consume_poi_reverse ")
                 .append("YIELD DISTINCT consume_poi_reverse._dst AS user_id, cos_similarity(")
                 .append("%s, $$.user.mt_user_poi_campaign_money, $$.user.dp_user_xmd_campaign_money, $$.user.dp_user_poi_campaign_money) AS sim\n")
+                // 4.根据相似度排序
                 .append(" | ORDER BY $-.sim\n")
+                // 5.取TOP5
                 .append(" | LIMIT 5\n")
+                // 6.TOP5 用户消费的POI
                 .append(" | GO FROM $-.user_id OVER consume_poi YIELD consume_poi._dst AS poi_id, $$.poi.dp_poi_name AS name\n")
+                // 7.做一次aggregation，统计次数
                 .append(" | GROUP BY $-.name, $-.poi_id YIELD $-.name AS merchant, count($-.poi_id) AS count\n ")
+                // 8.排序
                 .append(" | ORDER BY $-.count, $-.merchant")
                 .toString();
 
